@@ -582,6 +582,15 @@
           "sec15": "Na 15 seconden (Debug)"
         }
       },
+      "modelStorage": {
+        "title": "Modelmap",
+        "description": "Waar Handy nieuw gedownloade modellen opslaat en naar eigen modellen zoekt. Modellen die je al hebt, blijven waar ze zijn.",
+        "default": "Standaardlocatie",
+        "change": "Wijzigen…",
+        "reset": "Herstellen",
+        "choose": "Kies een map voor modellen",
+        "changeFailed": "Kon de modelmap niet wijzigen"
+      },
       "customWords": {
         "title": "Eigen woordenlijst",
         "description": "Help ondersteunde modellen namen en vaktermen te herkennen. Fuzzy-correctie is momenteel beperkt tot woorden met de letters A–Z en cijfers.",

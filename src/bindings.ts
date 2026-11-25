@@ -798,6 +798,25 @@ async rescanLocalModels() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * The custom folder models are stored in, or `None` for the default
+ * locations.
+ */
+async getModelStorageDir() : Promise<string | null> {
+    return await TAURI_INVOKE("get_model_storage_dir");
+},
+/**
+ * Store new downloads and custom models in `path`, or back in the default
+ * locations when `None`. Models already downloaded stay where they are.
+ */
+async setModelStorageDir(path: string | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_model_storage_dir", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async updateMicrophoneMode(alwaysOn: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_microphone_mode", { alwaysOn }) };
@@ -1138,7 +1157,12 @@ airpods_mode?: boolean; keyboard_implementation?: KeyboardImplementation; show_t
  * after the target app actually reads the transcript, instead of after a
  * fixed delay. See `paste_tx`. macOS and Windows only.
  */
-reliable_paste?: boolean; typing_tool?: TypingTool; external_script_path?: string | null; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; 
+reliable_paste?: boolean; typing_tool?: TypingTool; external_script_path?: string | null; 
+/**
+ * Folder for new model downloads and custom models; `None` keeps the
+ * defaults (the Hugging Face cache and `<app data>/models`).
+ */
+model_storage_dir?: string | null; filler_word_removal_enabled?: boolean; custom_filler_words?: string[] | null; 
 /**
  * Fresh installs default from the OS locale; existing stores are migrated
  * in `apply_settings_migrations`.

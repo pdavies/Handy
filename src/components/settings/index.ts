@@ -26,6 +26,7 @@ export { FillerWordRemoval } from "./FillerWordRemoval";
 export { ChineseScriptSetting } from "./ChineseScript";
 export { PreferredLanguages } from "./PreferredLanguages";
 export { AppDataDirectory } from "./AppDataDirectory";
+export { ModelStorageLocation } from "./ModelStorageLocation";
 export { ModelUnloadTimeoutSetting } from "./ModelUnloadTimeout";
 export { StartHidden } from "./StartHidden";
 export { HistoryLimit } from "./HistoryLimit";

@@ -262,3 +262,39 @@ pub async fn cancel_download(
         .cancel_download(&model_id)
         .map_err(|e| e.to_string())
 }
+
+/// The custom folder models are stored in, or `None` for the default
+/// locations.
+#[tauri::command]
+#[specta::specta]
+pub fn get_model_storage_dir(model_manager: State<'_, Arc<ModelManager>>) -> Option<String> {
+    model_manager
+        .model_storage_dir()
+        .map(|dir| dir.to_string_lossy().into_owned())
+}
+
+/// Store new downloads and custom models in `path`, or back in the default
+/// locations when `None`. Models already downloaded stay where they are.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_model_storage_dir(
+    app_handle: AppHandle,
+    model_manager: State<'_, Arc<ModelManager>>,
+    path: Option<String>,
+) -> Result<(), String> {
+    let path = path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
+    let mm = model_manager.inner().clone();
+    let root = path.clone().map(std::path::PathBuf::from);
+    tokio::task::spawn_blocking(move || mm.set_model_storage_dir(root))
+        .await
+        .map_err(|e| format!("model storage task panicked: {e}"))?
+        .map_err(|e| {
+            error!("Changing the model folder failed: {:#}", e);
+            e.to_string()
+        })?;
+
+    let mut settings = get_settings(&app_handle);
+    settings.model_storage_dir = path;
+    write_settings(&app_handle, settings);
+    Ok(())
+}

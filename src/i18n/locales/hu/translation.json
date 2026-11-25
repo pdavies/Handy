@@ -582,6 +582,15 @@
           "sec15": "15 mp után (hibakeresés)"
         }
       },
+      "modelStorage": {
+        "title": "Modellmappa",
+        "description": "Ahová a Handy az újonnan letöltött modelleket menti, és ahol egyéni modelleket keres. A meglévő modellek a helyükön maradnak.",
+        "default": "Alapértelmezett hely",
+        "change": "Módosítás…",
+        "reset": "Visszaállítás",
+        "choose": "Válasszon mappát a modellekhez",
+        "changeFailed": "Nem sikerült módosítani a modellmappát"
+      },
       "customWords": {
         "title": "Egyéni szavak",
         "description": "Segít a támogatott modelleknek felismerni a neveket és a szakkifejezéseket. A közelítő javítás jelenleg csak az A–Z betűket és számokat tartalmazó szavakra működik.",

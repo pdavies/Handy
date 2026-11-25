@@ -582,6 +582,15 @@
           "sec15": "Po 15 sekundach (Debug)"
         }
       },
+      "modelStorage": {
+        "title": "Folder modeli",
+        "description": "Gdzie Handy zapisuje nowo pobrane modele i szuka modeli własnych. Modele, które już masz, pozostają na swoim miejscu.",
+        "default": "Domyślna lokalizacja",
+        "change": "Zmień…",
+        "reset": "Resetuj",
+        "choose": "Wybierz folder na modele",
+        "changeFailed": "Nie udało się zmienić folderu modeli"
+      },
       "customWords": {
         "title": "Własne słowa",
         "description": "Pomóż obsługiwanym modelom rozpoznawać nazwy i specjalistyczne terminy. Korekta przybliżona jest obecnie ograniczona do słów używających liter A–Z i cyfr.",

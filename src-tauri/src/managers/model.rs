@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -312,23 +312,69 @@ pub struct DownloadProgress {
     pub bytes_per_sec: Option<f64>,
 }
 
-/// Return the active HF cache followed by the pre-v0.9.6 cache for portable
-/// upgrades. Downloads still use `Cache::from_env()` and therefore only write
-/// to the active portable cache.
+/// The folder the user chose for models (`model_storage_dir`), when it is in
+/// effect. Process-wide because the HF cache helpers below are free functions
+/// shared by lookup, discovery, download and deletion.
+static MODEL_STORAGE_ROOT: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+fn model_storage_root() -> Option<PathBuf> {
+    MODEL_STORAGE_ROOT
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+}
+
+fn set_model_storage_root(root: Option<PathBuf>) {
+    *MODEL_STORAGE_ROOT
+        .write()
+        .unwrap_or_else(|e| e.into_inner()) = root;
+}
+
+/// The HF cache inside a custom storage folder, laid out like `HF_HOME`.
+fn storage_hf_cache(root: &Path) -> Cache {
+    Cache::new(root.join("huggingface").join("hub"))
+}
+
+/// The models dir inside a custom storage folder.
+fn storage_models_dir(root: &Path) -> PathBuf {
+    root.join("models")
+}
+
+/// Return the HF caches in lookup order: the custom storage folder's cache
+/// when one is set, then the environment's cache, then the pre-v0.9.6 cache
+/// for portable upgrades. Downloads only write to the first, so models
+/// downloaded before the user moved storage stay where they are and still
+/// count as downloaded.
 fn hf_caches() -> Vec<Cache> {
-    let current = Cache::from_env();
-    let mut caches = vec![current.clone()];
+    let mut caches: Vec<Cache> = Vec::new();
+    let mut push = |cache: Cache| {
+        if !caches.iter().any(|c| c.path() == cache.path()) {
+            caches.push(cache);
+        }
+    };
+
+    if let Some(root) = model_storage_root() {
+        push(storage_hf_cache(&root));
+    }
+    push(Cache::from_env());
 
     if crate::portable::is_portable() {
-        let legacy = crate::portable::previous_hf_home()
-            .map(|home| Cache::new(home.join("hub")))
-            .unwrap_or_default();
-        if legacy.path() != current.path() {
-            caches.push(legacy);
-        }
+        push(
+            crate::portable::previous_hf_home()
+                .map(|home| Cache::new(home.join("hub")))
+                .unwrap_or_default(),
+        );
     }
 
     caches
+}
+
+/// The cache new downloads go to.
+fn hf_download_cache() -> Cache {
+    hf_caches()
+        .into_iter()
+        .next()
+        .unwrap_or_else(Cache::from_env)
 }
 
 fn hf_cached_path(repo_id: &str, revision: &str, filename: &str) -> Option<PathBuf> {
@@ -866,7 +912,9 @@ pub struct RetiredModel {
 
 pub struct ModelManager {
     app_handle: AppHandle,
-    models_dir: PathBuf,
+    /// `<app data>/models`. Still searched when a custom storage folder is
+    /// set, so models added before the move keep working.
+    default_models_dir: PathBuf,
     available_models: Mutex<HashMap<String, ModelInfo>>,
     cancel_flags: Arc<Mutex<HashMap<String, CancellationToken>>>,
     /// Single-flight guard for [`Self::rescan_local_models`] so concurrent
@@ -880,13 +928,17 @@ pub struct ModelManager {
 impl ModelManager {
     pub fn new(app_handle: &AppHandle) -> Result<Self> {
         // Create models directory in app data
-        let models_dir = crate::portable::app_data_dir(app_handle)
+        let default_models_dir = crate::portable::app_data_dir(app_handle)
             .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {}", e))?
             .join("models");
 
-        if !models_dir.exists() {
-            fs::create_dir_all(&models_dir)?;
+        if !default_models_dir.exists() {
+            fs::create_dir_all(&default_models_dir)?;
         }
+
+        set_model_storage_root(Self::usable_storage_root(
+            get_settings(app_handle).model_storage_dir.as_deref(),
+        ));
 
         let mut available_models = HashMap::new();
 
@@ -1063,10 +1115,11 @@ impl ModelManager {
         // find. Additive — see `seed_catalog_models`.
         Self::seed_catalog_models(&mut available_models);
 
-        // Auto-discover custom transcribe-cpp models (.bin / .gguf) in the models directory
-        if let Err(e) = Self::discover_custom_transcribe_models(&models_dir, &mut available_models)
-        {
-            warn!("Failed to discover custom models: {}", e);
+        // Auto-discover custom transcribe-cpp models (.bin / .gguf) in the models directories
+        for dir in Self::models_dirs_for(&default_models_dir) {
+            if let Err(e) = Self::discover_custom_transcribe_models(&dir, &mut available_models) {
+                warn!("Failed to discover custom models in {:?}: {}", dir, e);
+            }
         }
 
         // Auto-discover transcribe-cpp GGUF models already in the shared HF cache.
@@ -1074,7 +1127,7 @@ impl ModelManager {
 
         let manager = Self {
             app_handle: app_handle.clone(),
-            models_dir,
+            default_models_dir,
             available_models: Mutex::new(available_models),
             cancel_flags: Arc::new(Mutex::new(HashMap::new())),
             is_rescanning: Arc::new(AtomicBool::new(false)),
@@ -1091,6 +1144,89 @@ impl ModelManager {
         manager.auto_select_model_if_needed()?;
 
         Ok(manager)
+    }
+
+    /// The custom storage folder from settings, when it can be used. A folder
+    /// that is missing (an unplugged drive, say) is ignored rather than
+    /// recreated, so downloads don't silently fill the boot disk under its
+    /// mount point; the setting is kept for when it comes back.
+    fn usable_storage_root(setting: Option<&str>) -> Option<PathBuf> {
+        let root = PathBuf::from(setting?.trim());
+        if root.as_os_str().is_empty() {
+            return None;
+        }
+        if root.is_dir() {
+            Some(root)
+        } else {
+            warn!(
+                "Model storage folder {:?} is not available; using the default location",
+                root
+            );
+            None
+        }
+    }
+
+    /// Models dirs in lookup order: the custom storage folder's first, then
+    /// the default one.
+    fn models_dirs_for(default_models_dir: &Path) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        if let Some(root) = model_storage_root() {
+            dirs.push(storage_models_dir(&root));
+        }
+        if !dirs.iter().any(|d| d == default_models_dir) {
+            dirs.push(default_models_dir.to_path_buf());
+        }
+        dirs
+    }
+
+    fn models_dirs(&self) -> Vec<PathBuf> {
+        Self::models_dirs_for(&self.default_models_dir)
+    }
+
+    /// Where new files go: the custom storage folder's models dir, or the
+    /// default one.
+    fn models_dir(&self) -> PathBuf {
+        model_storage_root()
+            .map(|root| storage_models_dir(&root))
+            .unwrap_or_else(|| self.default_models_dir.clone())
+    }
+
+    /// The first complete copy of `filename` in any models dir.
+    fn local_model_file(&self, filename: &str) -> Option<PathBuf> {
+        self.models_dirs()
+            .into_iter()
+            .map(|dir| dir.join(filename))
+            .find(|path| path.exists())
+    }
+
+    /// The folder models are stored in: the custom one, or `None` for the
+    /// default locations.
+    pub fn model_storage_dir(&self) -> Option<PathBuf> {
+        model_storage_root()
+    }
+
+    /// Store new downloads and custom models under `root` (`None` for the
+    /// default locations). Models already on disk stay where they are and are
+    /// still found. Refused while a download is running, since it would land
+    /// in the old folder.
+    pub fn set_model_storage_dir(&self, root: Option<PathBuf>) -> Result<()> {
+        if !self.cancel_flags.lock().unwrap().is_empty() {
+            return Err(anyhow::anyhow!(
+                "Wait for downloads to finish before changing where models are stored"
+            ));
+        }
+        if let Some(root) = &root {
+            if !root.is_absolute() {
+                return Err(anyhow::anyhow!("Model folder must be an absolute path"));
+            }
+            fs::create_dir_all(storage_models_dir(root))?;
+            fs::create_dir_all(storage_hf_cache(root).path())?;
+        }
+        info!("Model storage folder set to {:?}", root);
+        set_model_storage_root(root);
+        // Pick up models already in the new folder (or drop entries whose
+        // only copy was in the old one).
+        self.rescan_local_models()
     }
 
     pub fn get_available_models(&self) -> Vec<ModelInfo> {
@@ -1170,8 +1306,13 @@ impl ModelManager {
         // The discover_* helpers are purely additive (they skip ids already in
         // the map), so the snapshot ends up as {current} ∪ {newly-found}.
         let mut snapshot = self.available_models.lock().unwrap().clone();
-        if let Err(e) = Self::discover_custom_transcribe_models(&self.models_dir, &mut snapshot) {
-            warn!("Rescan: failed to discover custom models: {}", e);
+        for dir in self.models_dirs() {
+            if let Err(e) = Self::discover_custom_transcribe_models(&dir, &mut snapshot) {
+                warn!(
+                    "Rescan: failed to discover custom models in {:?}: {}",
+                    dir, e
+                );
+            }
         }
         Self::discover_hf_cache_models(&mut snapshot);
 
@@ -1251,10 +1392,11 @@ impl ModelManager {
 
             if let Ok(bundled_path) = bundled_path {
                 if bundled_path.exists() {
-                    let user_path = self.models_dir.join(filename);
-
                     // Only copy if user doesn't already have the model
-                    if !user_path.exists() {
+                    if self.local_model_file(filename).is_none() {
+                        let models_dir = self.models_dir();
+                        fs::create_dir_all(&models_dir)?;
+                        let user_path = models_dir.join(filename);
                         info!("Migrating bundled model {} to user directory", filename);
                         fs::copy(&bundled_path, &user_path)?;
                         info!("Successfully migrated {}", filename);
@@ -1270,7 +1412,7 @@ impl ModelManager {
         model
             .disk_names
             .iter()
-            .any(|name| self.models_dir.join(name).exists())
+            .any(|name| self.local_model_file(name).is_some())
     }
 
     /// Retired ONNX models still on disk, in any layout they were stored in.
@@ -1295,9 +1437,13 @@ impl ModelManager {
             .iter()
             .find(|model| model.id == model_id)
             .ok_or_else(|| anyhow::anyhow!("Not a retired model: {}", model_id))?;
-        for name in model.disk_names {
+        for (dir, name) in self
+            .models_dirs()
+            .iter()
+            .flat_map(|dir| model.disk_names.iter().map(move |name| (dir, name)))
+        {
             for suffix in ["", ".partial", ".extracting"] {
-                let path = self.models_dir.join(format!("{name}{suffix}"));
+                let path = dir.join(format!("{name}{suffix}"));
                 if path.is_dir() {
                     fs::remove_dir_all(&path)?;
                 } else if path.exists() {
@@ -1316,6 +1462,7 @@ impl ModelManager {
         // two locks are never nested) so a mid-download entry is never dropped.
         let downloading_ids: HashSet<String> =
             self.cancel_flags.lock().unwrap().keys().cloned().collect();
+        let models_dir = self.models_dir();
         let mut models = self.available_models.lock().unwrap();
         let mut vanished_models: Vec<String> = Vec::new();
 
@@ -1323,10 +1470,9 @@ impl ModelManager {
             if let ModelSource::HuggingFace { repo_id, revision } = &model.source {
                 // A models-dir copy counts too: mirror-fallback downloads land
                 // there, and it makes manual drop-ins of catalog files work.
-                let local_path = self.models_dir.join(&model.filename);
-                let partial_path = self.models_dir.join(format!("{}.partial", &model.filename));
+                let partial_path = models_dir.join(format!("{}.partial", &model.filename));
                 model.is_downloaded = hf_cached_path(repo_id, revision, &model.filename).is_some()
-                    || local_path.exists();
+                    || self.local_model_file(&model.filename).is_some();
                 model.is_downloading = false;
                 model.partial_size = partial_path.metadata().map(|m| m.len()).unwrap_or(0);
                 // Alternate-quant entries exist only because their file was
@@ -1341,10 +1487,9 @@ impl ModelManager {
                 }
                 continue;
             }
-            let model_path = self.models_dir.join(&model.filename);
-            let partial_path = self.models_dir.join(format!("{}.partial", &model.filename));
+            let partial_path = models_dir.join(format!("{}.partial", &model.filename));
 
-            model.is_downloaded = model_path.exists();
+            model.is_downloaded = self.local_model_file(&model.filename).is_some();
             model.is_downloading = false;
 
             // Get partial file size if it exists
@@ -1826,7 +1971,7 @@ impl ModelManager {
         // Already in the shared cache (possibly from another tool), or dropped
         // into the models dir (mirror fallback / manual install)?
         let model_present = hf_cached_path(&repo_id, &revision, &filename).is_some()
-            || self.models_dir.join(&filename).exists();
+            || self.local_model_file(&filename).is_some();
         let detector = self.missing_detector_for(model_info);
         if model_present && detector.is_none() {
             self.update_download_status()?;
@@ -2031,6 +2176,7 @@ impl ModelManager {
             // Fresh client per attempt so a wedged connection from the previous
             // try can't poison the retry.
             let api = ApiBuilder::from_env()
+                .with_cache_dir(hf_download_cache().path().clone())
                 // Ignore cached and environment-provided credentials. A stale token
                 // can make otherwise-public downloads fail authentication.
                 .with_token(None)
@@ -2230,13 +2376,14 @@ impl ModelManager {
         mirror: &crate::catalog::MirrorFile,
         cancel_token: CancellationToken,
     ) -> Result<bool> {
-        fs::create_dir_all(&self.models_dir)?;
-        let model_path = self.models_dir.join(filename);
-        let partial_path = self.models_dir.join(format!("{}.partial", filename));
-
-        if model_path.exists() {
+        if self.local_model_file(filename).is_some() {
             return Ok(true);
         }
+
+        let models_dir = self.models_dir();
+        fs::create_dir_all(&models_dir)?;
+        let model_path = models_dir.join(filename);
+        let partial_path = models_dir.join(format!("{}.partial", filename));
 
         match self
             .download_http_resumable(
@@ -2281,13 +2428,12 @@ impl ModelManager {
                 return Err(anyhow::anyhow!("No download source for model"));
             }
         };
-        let model_path = self.models_dir.join(&model_info.filename);
-        let partial_path = self
-            .models_dir
-            .join(format!("{}.partial", &model_info.filename));
+        let models_dir = self.models_dir();
+        let model_path = models_dir.join(&model_info.filename);
+        let partial_path = models_dir.join(format!("{}.partial", &model_info.filename));
 
         // Don't download if complete version already exists
-        if model_path.exists() {
+        if self.local_model_file(&model_info.filename).is_some() {
             // Clean up any partial file that might exist
             if partial_path.exists() {
                 let _ = fs::remove_file(&partial_path);
@@ -2295,6 +2441,7 @@ impl ModelManager {
             self.update_download_status()?;
             return Ok(());
         }
+        fs::create_dir_all(&models_dir)?;
 
         // Mark as downloading
         {
@@ -2393,11 +2540,12 @@ impl ModelManager {
             let mut deleted = Self::delete_hf_cache_file(repo_id, revision, &model_info.filename)?;
             // Also remove a models-dir copy (mirror fallback / manual drop-in)
             // and any resumable partial next to it.
-            for path in [
-                self.models_dir.join(&model_info.filename),
-                self.models_dir
-                    .join(format!("{}.partial", &model_info.filename)),
-            ] {
+            for path in self.models_dirs().iter().flat_map(|dir| {
+                [
+                    dir.join(&model_info.filename),
+                    dir.join(format!("{}.partial", &model_info.filename)),
+                ]
+            }) {
                 if path.exists() {
                     info!("Deleting model file at: {:?}", path);
                     fs::remove_file(&path)?;
@@ -2422,29 +2570,20 @@ impl ModelManager {
             return Ok(());
         }
 
-        let model_path = self.models_dir.join(&model_info.filename);
-        let partial_path = self
-            .models_dir
-            .join(format!("{}.partial", &model_info.filename));
-        debug!("ModelManager: Model path: {:?}", model_path);
-        debug!("ModelManager: Partial path: {:?}", partial_path);
-
         let mut deleted_something = false;
 
-        // Delete complete model file if it exists
-        if model_path.exists() {
-            info!("Deleting model file at: {:?}", model_path);
-            fs::remove_file(&model_path)?;
-            info!("Model file deleted successfully");
-            deleted_something = true;
-        }
-
-        // Delete partial file if it exists
-        if partial_path.exists() {
-            info!("Deleting partial file at: {:?}", partial_path);
-            fs::remove_file(&partial_path)?;
-            info!("Partial file deleted successfully");
-            deleted_something = true;
+        // Delete the complete file and any partial from every models dir.
+        for dir in self.models_dirs() {
+            for path in [
+                dir.join(&model_info.filename),
+                dir.join(format!("{}.partial", &model_info.filename)),
+            ] {
+                if path.exists() {
+                    info!("Deleting model file at: {:?}", path);
+                    fs::remove_file(&path)?;
+                    deleted_something = true;
+                }
+            }
         }
 
         // Files already missing (e.g. removed outside Handy) is not a failure —
@@ -2532,11 +2671,9 @@ impl ModelManager {
             // The complete file only ever appears after verification, so a
             // stale `.partial` alongside it is leftover noise, not a veto —
             // clear it rather than declaring the model missing.
-            let local_path = self.models_dir.join(&model_info.filename);
-            if local_path.exists() {
-                let partial_path = self
-                    .models_dir
-                    .join(format!("{}.partial", &model_info.filename));
+            if let Some(local_path) = self.local_model_file(&model_info.filename) {
+                let partial_path =
+                    local_path.with_file_name(format!("{}.partial", &model_info.filename));
                 if partial_path.exists() {
                     let _ = fs::remove_file(&partial_path);
                 }
@@ -2549,18 +2686,14 @@ impl ModelManager {
             ));
         }
 
-        let model_path = self.models_dir.join(&model_info.filename);
-        let partial_path = self
-            .models_dir
-            .join(format!("{}.partial", &model_info.filename));
-
-        if !model_path.exists() {
+        let Some(model_path) = self.local_model_file(&model_info.filename) else {
             self.mark_model_unavailable(model_id);
             return Err(anyhow::anyhow!(
                 "Complete model file not found: {}",
                 model_id
             ));
-        }
+        };
+        let partial_path = model_path.with_file_name(format!("{}.partial", &model_info.filename));
         if partial_path.exists() {
             return Err(anyhow::anyhow!("Model file is incomplete: {}", model_id));
         }
@@ -2572,8 +2705,8 @@ impl ModelManager {
     pub fn language_detector_path(&self) -> Option<PathBuf> {
         let detector = crate::catalog::LANGUAGE_DETECTOR.as_ref()?;
         hf_cached_path(&detector.repo_id, &detector.revision, &detector.filename).or_else(|| {
-            let local = self.models_dir.join(&detector.filename);
-            local.is_file().then_some(local)
+            self.local_model_file(&detector.filename)
+                .filter(|path| path.is_file())
         })
     }
 

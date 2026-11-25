@@ -582,6 +582,15 @@
           "sec15": "15 秒后（调试）"
         }
       },
+      "modelStorage": {
+        "title": "模型文件夹",
+        "description": "Handy 保存新下载模型和查找自定义模型的位置。已有的模型保留在原处。",
+        "default": "默认位置",
+        "change": "更改…",
+        "reset": "重置",
+        "choose": "选择模型文件夹",
+        "changeFailed": "无法更改模型文件夹"
+      },
       "customWords": {
         "title": "自定义词汇",
         "description": "帮助受支持的模型识别名称和专业术语。目前，模糊纠错仅适用于使用 A–Z 字母和数字的词语。",

@@ -582,6 +582,15 @@
           "sec15": "15 秒後（偵錯）"
         }
       },
+      "modelStorage": {
+        "title": "模型資料夾",
+        "description": "Handy 儲存新下載模型及尋找自訂模型的位置。已有的模型會保留在原處。",
+        "default": "預設位置",
+        "change": "變更…",
+        "reset": "重設",
+        "choose": "選擇模型資料夾",
+        "changeFailed": "無法變更模型資料夾"
+      },
       "customWords": {
         "title": "自訂詞彙",
         "description": "協助支援的模型辨識名稱和專業術語。目前，模糊修正僅適用於使用 A–Z 字母和數字的詞語。",

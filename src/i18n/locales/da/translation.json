@@ -582,6 +582,15 @@
           "sec15": "Efter 15 sekunder (fejlfinding)"
         }
       },
+      "modelStorage": {
+        "title": "Modelmappe",
+        "description": "Hvor Handy gemmer nye modeldownloads og leder efter brugerdefinerede modeller. Modeller, du allerede har, bliver, hvor de er.",
+        "default": "Standardplacering",
+        "change": "Skift…",
+        "reset": "Nulstil",
+        "choose": "Vælg en mappe til modeller",
+        "changeFailed": "Modelmappen kunne ikke ændres"
+      },
       "customWords": {
         "title": "Brugerdefinerede ord",
         "description": "Hjælp understøttede modeller med at genkende navne og specialiserede udtryk. Fuzzy-korrektion er i øjeblikket begrænset til ord, der bruger A-Z og tal.",

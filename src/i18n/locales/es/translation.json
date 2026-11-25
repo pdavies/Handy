@@ -582,6 +582,15 @@
           "sec15": "Después de 15 segundos (Depuración)"
         }
       },
+      "modelStorage": {
+        "title": "Carpeta de modelos",
+        "description": "Dónde guarda Handy los modelos nuevos que descargas y dónde busca modelos personalizados. Los modelos que ya tienes se quedan donde están.",
+        "default": "Ubicación predeterminada",
+        "change": "Cambiar…",
+        "reset": "Restablecer",
+        "choose": "Elige una carpeta para los modelos",
+        "changeFailed": "No se pudo cambiar la carpeta de modelos"
+      },
       "customWords": {
         "title": "Palabras personalizadas",
         "description": "Ayuda a los modelos compatibles a reconocer nombres y términos especializados. Actualmente, la corrección aproximada se limita a palabras que usan letras de la A a la Z y números.",

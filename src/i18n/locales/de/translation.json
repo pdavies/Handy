@@ -582,6 +582,15 @@
           "sec15": "Nach 15 Sekunden (Debug)"
         }
       },
+      "modelStorage": {
+        "title": "Modellordner",
+        "description": "Wo Handy neu heruntergeladene Modelle speichert und nach eigenen Modellen sucht. Bereits vorhandene Modelle bleiben, wo sie sind.",
+        "default": "Standardort",
+        "change": "Ändern…",
+        "reset": "Zurücksetzen",
+        "choose": "Ordner für Modelle auswählen",
+        "changeFailed": "Modellordner konnte nicht geändert werden"
+      },
       "customWords": {
         "title": "Benutzerdefinierte Wörter",
         "description": "Hilf unterstützten Modellen, Namen und Fachbegriffe zu erkennen. Die unscharfe Korrektur ist derzeit auf Wörter mit den Buchstaben A–Z und Zahlen beschränkt.",

@@ -582,6 +582,15 @@
           "sec15": "Setelah 15 detik (Debug)"
         }
       },
+      "modelStorage": {
+        "title": "Folder Model",
+        "description": "Tempat Handy menyimpan model baru yang diunduh dan mencari model kustom. Model yang sudah Anda miliki tetap di tempatnya.",
+        "default": "Lokasi default",
+        "change": "Ubah…",
+        "reset": "Atur ulang",
+        "choose": "Pilih folder untuk model",
+        "changeFailed": "Tidak dapat mengubah folder model"
+      },
       "customWords": {
         "title": "Kata Khusus",
         "description": "Bantu model yang didukung mengenali nama dan istilah khusus. Koreksi fuzzy saat ini terbatas pada kata yang menggunakan huruf A–Z dan angka.",

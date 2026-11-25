@@ -582,6 +582,15 @@
           "sec15": "Po 15 sekundách (Debug)"
         }
       },
+      "modelStorage": {
+        "title": "Složka modelů",
+        "description": "Kam Handy ukládá nově stažené modely a kde hledá vlastní modely. Modely, které už máte, zůstanou tam, kde jsou.",
+        "default": "Výchozí umístění",
+        "change": "Změnit…",
+        "reset": "Obnovit",
+        "choose": "Vyberte složku pro modely",
+        "changeFailed": "Složku modelů se nepodařilo změnit"
+      },
       "customWords": {
         "title": "Vlastní slova",
         "description": "Pomozte podporovaným modelům rozpoznávat jména a odborné termíny. Přibližné opravy jsou v současnosti omezeny na slova obsahující písmena A–Z a číslice.",

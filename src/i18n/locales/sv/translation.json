@@ -582,6 +582,15 @@
           "sec15": "Efter 15 sekunder (Felsökning)"
         }
       },
+      "modelStorage": {
+        "title": "Modellmapp",
+        "description": "Där Handy sparar nya nedladdade modeller och letar efter egna modeller. Modeller du redan har stannar där de är.",
+        "default": "Standardplats",
+        "change": "Ändra…",
+        "reset": "Återställ",
+        "choose": "Välj en mapp för modeller",
+        "changeFailed": "Det gick inte att ändra modellmappen"
+      },
       "customWords": {
         "title": "Anpassade ord",
         "description": "Hjälp modeller som stöds att känna igen namn och specialtermer. Ungefärlig korrigering är för närvarande begränsad till ord med bokstäverna A–Z och siffror.",

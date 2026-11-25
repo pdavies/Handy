@@ -582,6 +582,15 @@
           "sec15": "After 15 seconds (Debug)"
         }
       },
+      "modelStorage": {
+        "title": "Model Folder",
+        "description": "Where Handy saves new model downloads and looks for custom models. Models you already have stay where they are.",
+        "default": "Default location",
+        "change": "Change…",
+        "reset": "Reset",
+        "choose": "Choose a folder for models",
+        "changeFailed": "Couldn’t change the model folder"
+      },
       "customWords": {
         "title": "Custom Words",
         "description": "Help supported models recognize names and specialized terms. Fuzzy correction is currently limited to words using A–Z and numbers.",

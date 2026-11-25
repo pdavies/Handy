@@ -582,6 +582,15 @@
           "sec15": "Al cap de 15 segons (depuració)"
         }
       },
+      "modelStorage": {
+        "title": "Carpeta de models",
+        "description": "On Handy desa els models nous que es baixen i on cerca models personalitzats. Els models que ja tens es queden on són.",
+        "default": "Ubicació per defecte",
+        "change": "Canvia…",
+        "reset": "Restableix",
+        "choose": "Tria una carpeta per als models",
+        "changeFailed": "No s’ha pogut canviar la carpeta de models"
+      },
       "customWords": {
         "title": "Paraules personalitzades",
         "description": "Ajudeu els models compatibles a reconèixer noms i termes especialitzats. Actualment, la correcció per similitu es limita a paraules amb lletres de la A a la Z i números.",

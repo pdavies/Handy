@@ -582,6 +582,15 @@
           "sec15": "Sau 15 giây (Gỡ lỗi)"
         }
       },
+      "modelStorage": {
+        "title": "Thư mục mô hình",
+        "description": "Nơi Handy lưu các mô hình mới tải xuống và tìm mô hình tùy chỉnh. Các mô hình bạn đã có vẫn ở nguyên chỗ cũ.",
+        "default": "Vị trí mặc định",
+        "change": "Thay đổi…",
+        "reset": "Đặt lại",
+        "choose": "Chọn thư mục cho mô hình",
+        "changeFailed": "Không thể thay đổi thư mục mô hình"
+      },
       "customWords": {
         "title": "Từ tùy chỉnh",
         "description": "Giúp các mô hình được hỗ trợ nhận dạng tên và thuật ngữ chuyên ngành. Tính năng sửa gần đúng hiện chỉ áp dụng cho các từ sử dụng chữ cái A–Z và chữ số.",

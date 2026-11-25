@@ -582,6 +582,15 @@
           "sec15": "Após 15 segundos (Depuração)"
         }
       },
+      "modelStorage": {
+        "title": "Pasta de modelos",
+        "description": "Onde o Handy guarda os novos modelos baixados e procura modelos personalizados. Os modelos que você já tem ficam onde estão.",
+        "default": "Local padrão",
+        "change": "Alterar…",
+        "reset": "Redefinir",
+        "choose": "Escolha uma pasta para os modelos",
+        "changeFailed": "Não foi possível alterar a pasta de modelos"
+      },
       "customWords": {
         "title": "Palavras Personalizadas",
         "description": "Ajude os modelos compatíveis a reconhecer nomes e termos especializados. A correção aproximada está atualmente limitada a palavras que usam letras de A–Z e números.",

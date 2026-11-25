@@ -582,6 +582,15 @@
           "sec15": "Après 15 secondes (Débogage)"
         }
       },
+      "modelStorage": {
+        "title": "Dossier des modèles",
+        "description": "Où Handy enregistre les nouveaux modèles téléchargés et cherche les modèles personnalisés. Les modèles déjà présents restent à leur place.",
+        "default": "Emplacement par défaut",
+        "change": "Modifier…",
+        "reset": "Réinitialiser",
+        "choose": "Choisissez un dossier pour les modèles",
+        "changeFailed": "Impossible de changer le dossier des modèles"
+      },
       "customWords": {
         "title": "Mots personnalisés",
         "description": "Aidez les modèles compatibles à reconnaître les noms et les termes spécialisés. La correction approximative est actuellement limitée aux mots utilisant les lettres A à Z et des chiffres.",
